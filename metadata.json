@@ -1,0 +1,5 @@
+{
+  "name": "职场模拟器 (OfficeSim)",
+  "description": "一个基于 Utility AI 的实时职场模拟游戏。角色会根据自身需求（精力、压力、便意）自动决定工作、摸鱼或休息。玩家可以控制一名角色参与其中。",
+  "requestFramePermissions": []
+}
