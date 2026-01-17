@@ -7,6 +7,7 @@ import { LocationType, ActionDefinition, SerializableAction, GameConfig, Charact
 import WorldMap from './components/WorldMap';
 import CharacterPanel from './components/CharacterPanel';
 import LogPanel from './components/LogPanel';
+import TutorialModal from './components/TutorialModal';
 import { Play, Pause, FastForward, RefreshCw, Download, Upload, Eye, Calendar, Clock } from 'lucide-react';
 
 function getFunctionBody(func: Function): string {
@@ -66,6 +67,7 @@ function App() {
   const [worldState, setWorldState] = useState(engineRef.getState());
   const [isRunning, setIsRunning] = useState(true);
   const [speedMultiplier, setSpeedMultiplier] = useState(1);
+  const [showTutorial, setShowTutorial] = useState(true);
   const intervalRef = useRef<number | null>(null);
 
   const tick = () => {
@@ -78,13 +80,13 @@ function App() {
     setWorldState({ ...engineRef.getState() });
   };
 
-  const handleInteraction = (targetId: string, type: 'gossip' | 'gift') => {
+  const handleInteraction = (targetId: string, type: 'gossip' | 'gift' | 'propose') => {
     engineRef.commandInteraction(targetId, type);
     setWorldState({ ...engineRef.getState() });
   };
 
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && !showTutorial) {
       intervalRef.current = window.setInterval(tick, TICK_RATE_MS / speedMultiplier);
     } else {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -92,7 +94,7 @@ function App() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, speedMultiplier]);
+  }, [isRunning, speedMultiplier, showTutorial]);
 
   const handleReset = () => {
     window.location.reload();
@@ -129,8 +131,11 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 text-slate-200">
+    <div className="min-h-screen bg-slate-950 p-4 md:p-8 text-slate-200 relative">
       
+      {/* Tutorial Overlay */}
+      {showTutorial && <TutorialModal onClose={() => setShowTutorial(false)} />}
+
       {/* Header */}
       <header className="mb-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b border-slate-800 pb-6">
         <div className="flex flex-col gap-1">

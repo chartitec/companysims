@@ -222,6 +222,38 @@ export const ACTIONS: ActionDefinition[] = [
     },
   },
   {
+    id: 'spread_rumor',
+    label: '散布谣言',
+    requiredLocation: LocationType.LOUNGE,
+    duration: 5,
+    utilityScorer: (char: Character) => {
+      // Logic: Favor '城府' or '八卦' and high 'ambition'
+      if (!char.characteristics.includes('城府') && !char.characteristics.includes('八卦')) {
+          // If they don't have the traits, very low chance unless extreme ambition
+          if (char.ambition < 80) return 0;
+      }
+      
+      let score = char.ambition * 0.6; // Base driver is ambition
+      
+      if (char.characteristics.includes('城府')) score += 30;
+      if (char.characteristics.includes('八卦')) score += 20;
+      
+      // If stress is high, they might want to vent by sabotaging others
+      if (char.stats.stress > 60) score += 20;
+
+      return Math.max(0, score);
+    },
+    effects: (char) => {
+      // Self effects: Increases stress (guilt/effort)
+      return {
+        stress: Math.min(100, char.stats.stress + 15),
+        energy: Math.max(0, char.stats.energy - 5),
+        // Slight social gain with the listener (abstracted here, detailed logic in Sim)
+        social: Math.min(100, char.stats.social + 5) 
+      };
+    }
+  },
+  {
     id: 'training_session',
     label: '技能培训',
     requiredLocation: LocationType.MEETING_ROOM_1,

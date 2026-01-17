@@ -1,5 +1,5 @@
 
-import { Character, CharacterState, WorldState, LogEntry, LocationType, Coordinates, ActionDefinition } from '../types';
+import { Character, CharacterState, WorldState, LogEntry, LocationType, Coordinates, ActionDefinition, Secret } from '../types';
 import { LOCATIONS, MOVEMENT_SPEED, LOCATION_NAMES, TICKS_PER_WEEK, TICKS_PER_MONTH, TICKS_PER_QUARTER } from '../constants';
 
 const uuid = () => Math.random().toString(36).substring(2, 9);
@@ -189,7 +189,6 @@ export class SimulationEngine {
       char.monthly_salary_base = Math.floor(char.monthly_salary_base * salaryMult);
       
       // Update Record
-      // We store ratio * 100 as the numeric score, effectively percentage
       char.performance.lastReviewScore = Math.floor(ratio * 100);
 
       // Logs
@@ -272,7 +271,7 @@ export class SimulationEngine {
     }
   }
 
-  public commandInteraction(targetId: string, type: 'gossip' | 'gift') {
+  public commandInteraction(targetId: string, type: 'gossip' | 'gift' | 'propose') {
     const player = this.state.characters.find(c => c.isPlayer);
     const target = this.state.characters.find(c => c.id === targetId);
     if (!player || !target) return;
@@ -283,6 +282,16 @@ export class SimulationEngine {
         this.log("余额不足，买不起礼物 (需要 ¥500)。", 'alert');
         return;
       }
+    }
+
+    if (type === 'propose') {
+       this.log(`玩家指令: 向 ${target.name} 求婚！`, 'action');
+       player.currentActionId = 'propose_marriage';
+       player.targetCharacterId = targetId;
+       player.thoughtBubble = `求婚...`;
+       player.state = CharacterState.MOVING;
+       player.targetPosition = { ...target.position };
+       return;
     }
 
     const actionLabel = type === 'gossip' ? '八卦' : '送礼物';
@@ -382,7 +391,7 @@ export class SimulationEngine {
     }
 
     if (this.state.managerActive && char.state === CharacterState.PERFORMING) {
-      const slackingActions = ['gossip', 'nap', 'drink_coffee', 'use_restroom', 'stock_trading'];
+      const slackingActions = ['gossip', 'nap', 'drink_coffee', 'use_restroom', 'stock_trading', 'spread_rumor'];
       const workingActions = ['work_code', 'training_session', 'visit_ceo'];
       
       if (char.currentActionId && slackingActions.includes(char.currentActionId)) {
@@ -437,18 +446,16 @@ export class SimulationEngine {
     }
 
     // --- MARRIAGE PROPOSAL LOGIC ---
-    // Only verify for Males to initiate (to avoid double initiation), or based on ambition/social
     if (!char.spouseId && char.gender === 'Male' && char.state === CharacterState.IDLE) {
-        // Find a high intimacy, single, opposite gender target
         const potentialSpouse = this.state.characters.find(c => 
             c.id !== char.id &&
             !c.spouseId &&
             c.gender === 'Female' &&
-            (char.network_intimacy[c.id] || 0) > 80 && // High Intimacy
-            this.getDistance(char.position, c.position) < 30 // Relatively close (same map)
+            (char.network_intimacy[c.id] || 0) > 80 && 
+            this.getDistance(char.position, c.position) < 30 
         );
 
-        if (potentialSpouse && Math.random() < 0.05) { // Small chance to trigger if conditions met
+        if (potentialSpouse && Math.random() < 0.05) { 
             this.log(`${char.name} 鼓起勇气，准备向 ${potentialSpouse.name} 求婚！`, 'love');
             char.currentActionId = 'propose_marriage';
             char.targetCharacterId = potentialSpouse.id;
@@ -461,35 +468,27 @@ export class SimulationEngine {
 
     // --- SPECIAL MANAGER LOGIC (SNITCHING) ---
     if (char.id === 'npc_manager') {
-       // Look for slacking employees nearby
-       const slackingActions = ['nap', 'stock_trading', 'gossip', 'drink_coffee', 'interaction_gossip'];
+       const slackingActions = ['nap', 'stock_trading', 'gossip', 'drink_coffee', 'interaction_gossip', 'spread_rumor'];
        const victim = this.state.characters.find(c => 
          c.id !== char.id && 
          c.state === CharacterState.PERFORMING &&
          c.currentActionId && slackingActions.includes(c.currentActionId) &&
-         this.getDistance(char.position, c.position) < 8 // Vision range
+         this.getDistance(char.position, c.position) < 8 
        );
 
        if (victim) {
-         // 20% Chance to trigger reporting if seeing someone slacking
          if (Math.random() < 0.2) {
-            this.log(`李总监发现了 ${victim.name} 在摸鱼！准备打小报告...`, 'alert');
-            char.thoughtBubble = `发现${victim.name}摸鱼!`;
-            
-            // Manually set action to record_misconduct
-            const reportAction = this.actions.find(a => a.id === 'record_misconduct');
-            if (reportAction) {
-               char.currentActionId = 'record_misconduct';
-               char.targetCharacterId = victim.id;
-               char.state = CharacterState.MOVING;
-               char.targetPosition = { ...victim.position };
-               return char;
-            }
+            this.log(`李总监发现了 ${victim.name} 在摸鱼！准备打小报告！`, 'alert');
+            char.currentActionId = 'record_misconduct';
+            char.state = CharacterState.PERFORMING; 
+            char.actionTimer = 5;
+            char.thoughtBubble = "哼哼...";
+            return char;
          }
        }
     }
-    // -----------------------------------------
 
+    // --- GENERIC UTILITY AI ---
     let bestAction = null;
     let highestScore = -Infinity;
 
@@ -521,7 +520,6 @@ export class SimulationEngine {
         targetLoc = this.state.locations[bestAction.requiredLocation];
       }
 
-      this.log(`${char.name} 决定: ${bestAction.label}`, 'action');
       char.thoughtBubble = `去${bestAction.label}`;
       char.currentActionId = bestAction.id;
       char.targetCharacterId = null; 
@@ -562,20 +560,15 @@ export class SimulationEngine {
       char.position = { ...char.targetPosition };
       char.targetPosition = null;
       
-      if (char.currentActionId?.startsWith('interaction_')) {
+      if (char.currentActionId?.startsWith('interaction_') || char.currentActionId === 'propose_marriage') {
          char.state = CharacterState.PERFORMING;
          char.actionTimer = 5; 
-         const type = char.currentActionId.split('_')[1];
-         char.thoughtBubble = type === 'gossip' ? '八卦中...' : '送礼中...';
-      } else if (char.currentActionId === 'record_misconduct') {
-         // Special state for Manager Snitching
-         char.state = CharacterState.PERFORMING;
-         char.actionTimer = 5;
-         char.thoughtBubble = '记小本本...';
-      } else if (char.currentActionId === 'propose_marriage') {
-         char.state = CharacterState.PERFORMING;
-         char.actionTimer = 10;
-         char.thoughtBubble = '紧张...';
+         if (char.currentActionId === 'propose_marriage') {
+             char.thoughtBubble = '求婚中...';
+         } else {
+             const type = char.currentActionId.split('_')[1];
+             char.thoughtBubble = type === 'gossip' ? '八卦中...' : '送礼中...';
+         }
       } else {
         const action = this.actions.find(a => a.id === char.currentActionId);
         if (action) {
@@ -624,65 +617,49 @@ export class SimulationEngine {
     }
 
     if (char.actionTimer <= 0) {
-      // INTERACTION & MARRIAGE LOGIC
-      if (char.currentActionId === 'propose_marriage' && char.targetCharacterId) {
-          const target = this.state.characters.find(c => c.id === char.targetCharacterId);
-          if (target && !target.spouseId && !char.spouseId) {
-              // Success!
-              this.log(`❤️ 喜讯！${char.name} 向 ${target.name} 求婚成功！两人正式结为夫妻！`, 'love');
-              char.spouseId = target.id;
-              target.spouseId = char.id;
-              char.is_married = true;
-              target.is_married = true;
-              
-              char.stats.stress = 0;
-              target.stats.stress = 0;
-              char.stats.social = 100;
-              target.stats.social = 100;
-
-              char.thoughtBubble = "太幸福了！";
-              target.thoughtBubble = "我愿意！";
-          } else {
-              this.log(`${char.name} 求婚失败... 对方可能已经结婚了。`, 'alert');
-          }
-      } else if (char.currentActionId?.startsWith('interaction_') && char.targetCharacterId) {
+      if (char.currentActionId?.startsWith('interaction_') && char.targetCharacterId) {
         const type = char.currentActionId.split('_')[1];
         const target = this.state.characters.find(c => c.id === char.targetCharacterId);
         
         if (target) {
-          // Intimacy Logic
-          const currentIntimacy = char.network_intimacy[target.id] || 0;
-          let intimacyGain = 0;
-
           if (type === 'gossip') {
             this.log(`${char.name} 与 ${target.name} 八卦。`, 'info');
             char.stats.social = Math.min(100, char.stats.social + 30);
             target.stats.social = Math.min(100, target.stats.social + 30);
-            intimacyGain = 5;
+            
+            // Intimacy
+            char.network_intimacy[target.id] = (char.network_intimacy[target.id] || 0) + 5;
+            target.network_intimacy[char.id] = (target.network_intimacy[char.id] || 0) + 5;
+
           } else if (type === 'gift') {
             this.log(`${char.name} 送给 ${target.name} 礼物 (-¥500)。`, 'info');
-            char.savings -= 500; // CONSUME MONEY
+            char.savings -= 500; 
             char.stats.social = Math.min(100, char.stats.social + 20);
             target.stats.social = Math.min(100, target.stats.social + 50);
             target.stats.stress = Math.max(0, target.stats.stress - 40);
-            intimacyGain = 15;
-          }
 
-          // Update Intimacy Bi-directionally
-          char.network_intimacy[target.id] = Math.min(100, currentIntimacy + intimacyGain);
-          target.network_intimacy[char.id] = Math.min(100, (target.network_intimacy[char.id] || 0) + intimacyGain);
+            // Intimacy
+            char.network_intimacy[target.id] = (char.network_intimacy[target.id] || 0) + 20;
+            target.network_intimacy[char.id] = (target.network_intimacy[char.id] || 0) + 20;
+          }
         }
-      } else if (char.currentActionId === 'record_misconduct' && char.targetCharacterId) {
-         // Manager Snitch Completion
-         const victim = this.state.characters.find(c => c.id === char.targetCharacterId);
-         if (victim) {
-            this.log(`${char.name} 狠狠地记了 ${victim.name} 一笔！(压力+20, 社交-10)`, 'alert');
-            victim.stats.stress += 20;
-            victim.stats.social -= 10;
-            victim.thoughtBubble = '被记过了...';
-            // Simple Manager effect
-            char.stats.stress = Math.max(0, char.stats.stress - 5);
-         }
+      } else if (char.currentActionId === 'propose_marriage' && char.targetCharacterId) {
+        const target = this.state.characters.find(c => c.id === char.targetCharacterId);
+        if (target) {
+             const successChance = (char.network_intimacy[target.id] || 0) / 100;
+             if (Math.random() < successChance) {
+                 this.log(`❤️ 喜讯！${char.name} 向 ${target.name} 求婚成功！`, 'love');
+                 char.spouseId = target.id;
+                 target.spouseId = char.id;
+                 char.is_married = true;
+                 target.is_married = true;
+             } else {
+                 this.log(`💔 ${char.name} 向 ${target.name} 求婚被拒...`, 'alert');
+                 char.stats.stress += 50;
+                 // Intimacy drop
+                 char.network_intimacy[target.id] = Math.max(0, (char.network_intimacy[target.id] || 0) - 20);
+             }
+        }
       } else {
         const action = this.actions.find(a => a.id === char.currentActionId);
         if (action) {
@@ -697,7 +674,18 @@ export class SimulationEngine {
           }
           char.stats = { ...char.stats, ...statsUpdate };
           Object.assign(char, otherUpdates); 
-          this.log(`${char.name} 结束: ${action.label}。`, 'info');
+
+          // === HANDLING SPREAD RUMOR SIDE EFFECTS ===
+          if (char.currentActionId === 'spread_rumor') {
+            // Find a random victim (not self, not dead)
+            const victims = this.state.characters.filter(c => c.id !== char.id && c.state !== CharacterState.DEAD);
+            if (victims.length > 0) {
+               const victim = victims[Math.floor(Math.random() * victims.length)];
+               victim.stats.social = Math.max(0, victim.stats.social - 20);
+               victim.stats.stress = Math.min(100, victim.stats.stress + 10);
+               this.log(`${char.name} 在休息区散布关于 ${victim.name} 的恶毒谣言！`, 'alert');
+            }
+          }
         }
       }
       

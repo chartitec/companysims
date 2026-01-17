@@ -58,6 +58,12 @@ export interface PerformanceMetrics {
   lastReviewScore: number;
 }
 
+export interface Secret {
+  id: string;
+  content: string;
+  rarity: 'Common' | 'Rare' | 'Epic';
+}
+
 export interface Character {
   id: string;
   isPlayer?: boolean; // Flag for player control
@@ -118,6 +124,7 @@ export interface Character {
   network_intimacy: Record<string, number>; // ID -> Value (0-100)
   characteristics: Characteristic[];
   skills: Skills;
+  knownSecrets: Secret[];
 }
 
 export interface ActionDefinition {
@@ -160,5 +167,5 @@ export interface LogEntry {
   id: string;
   tick: number;
   message: string;
-  type: 'info' | 'action' | 'alert' | 'finance' | 'system' | 'love';
+  type: 'info' | 'action' | 'alert' | 'finance' | 'system' | 'love' | 'secret';
 }

@@ -1,5 +1,5 @@
 
-import { Character, CharacterState, LocationType, Stats, Skills, Characteristic, Coordinates } from './types';
+import { Character, CharacterState, LocationType, Stats, Skills, Characteristic, Coordinates, Secret } from './types';
 import { LOCATIONS } from './constants';
 
 const NAMES_MALE = ['伟', '强', '磊', '洋', '勇', '军', '杰', '涛', '超', '明', '刚', '平', '辉', '鹏', '华'];
@@ -19,6 +19,21 @@ const COLORS = [
 
 const CHARACTERISTICS_POOL: Characteristic[] = [
   '钝感力', '高敏感', '卷王', '社恐', '真诚', '城府', '野心', '拜金', '朴素', '理性', '感性', '好色', '贪吃', '易怒'
+];
+
+const SECRETS_POOL: Secret[] = [
+    { id: 's1', content: '公司下个季度要裁员20%', rarity: 'Epic' },
+    { id: 's2', content: '马总的头发其实是假发', rarity: 'Rare' },
+    { id: 's3', content: '财务部的账目对不上', rarity: 'Epic' },
+    { id: 's4', content: 'HR姐姐正在和李总监秘密交往', rarity: 'Rare' },
+    { id: 's5', content: '茶水间的咖啡机其实从未清洗过', rarity: 'Common' },
+    { id: 's6', content: '听说隔壁组的项目代码全是复制粘贴的', rarity: 'Common' },
+    { id: 's7', content: '李总监其实是竞争对手派来的卧底', rarity: 'Epic' },
+    { id: 's8', content: '年终奖今年可能要取消', rarity: 'Rare' },
+    { id: 's9', content: '厕所隔间里经常有奇怪的哭声', rarity: 'Common' },
+    { id: 's10', content: '公司准备搬迁到郊区', rarity: 'Rare' },
+    { id: 's11', content: '行政部的小王其实是富二代', rarity: 'Common' },
+    { id: 's12', content: '服务器密码其实就是 "admin123"', rarity: 'Epic' },
 ];
 
 // Desk Slots: x: 2-18, y: 5-14 (Grid is 20x20). 
@@ -81,8 +96,24 @@ const createBaseCharacter = (id: string, name: string, assignedDesk: Coordinates
     sickness: null,
     network_intimacy: {},
     characteristics: [],
-    skills: { programming: 50, system_design: 30, analysis: 40 }
+    skills: { programming: 50, system_design: 30, analysis: 40 },
+    knownSecrets: []
 });
+
+const assignInitialSecrets = (char: Character) => {
+    let secretCount = 0;
+    
+    // Higher levels know more secrets
+    if (char.role === 'CEO') secretCount = 5;
+    else if (char.level === 'P9' || char.role === 'HRBP') secretCount = 4;
+    else if (char.level === 'P8' || char.level === 'P7') secretCount = 3;
+    else if (char.level === 'P6') secretCount = 2;
+    else if (char.level === 'P5') secretCount = 1;
+    
+    // Shuffle and pick
+    const shuffled = [...SECRETS_POOL].sort(() => Math.random() - 0.5);
+    char.knownSecrets = shuffled.slice(0, secretCount);
+};
 
 const generateIdentity = (id: string, assignedDesk: Coordinates): Character => {
   const gender = Math.random() > 0.4 ? 'Male' : 'Female';
@@ -150,6 +181,8 @@ const generateIdentity = (id: string, assignedDesk: Coordinates): Character => {
     analysis: randInt(10, 90)
   };
 
+  assignInitialSecrets(char);
+
   return char;
 };
 
@@ -161,8 +194,8 @@ export const generatePopulation = (): Character[] => {
 
   // 1. The Player (User)
   const playerDesk = shuffledDesks.pop() || { x: 2, y: 2 };
-  characters.push({
-    ...createBaseCharacter('player', '你 (玩家)', playerDesk),
+  const player = createBaseCharacter('player', '你 (玩家)', playerDesk);
+  Object.assign(player, {
     isPlayer: true,
     role: '新员工',
     color: 'bg-pink-500',
@@ -174,6 +207,9 @@ export const generatePopulation = (): Character[] => {
     stocks: 5000,
     monthly_salary_base: 12000
   });
+  // Player starts with 0 or 1 low level secret
+  player.knownSecrets = [SECRETS_POOL.find(s => s.rarity === 'Common') || SECRETS_POOL[0]];
+  characters.push(player);
 
   // 2. The CEO (Boss Ma) - Special Location
   const ceoDesk = { x: 2, y: 2 }; // Inside CEO Office
@@ -190,6 +226,7 @@ export const generatePopulation = (): Character[] => {
   ceo.intelligence = 95;
   ceo.characteristics = ['野心', '城府', '理性', '卷王'];
   ceo.location = LocationType.CEO_OFFICE;
+  assignInitialSecrets(ceo);
   characters.push(ceo);
 
   // 3. The Tech Manager (Director Li) - Head of Rows
@@ -207,6 +244,7 @@ export const generatePopulation = (): Character[] => {
   manager.characteristics = ['易怒', '卷王', '城府'];
   manager.skills.system_design = 95;
   manager.skills.programming = 80;
+  assignInitialSecrets(manager);
   characters.push(manager);
 
   // 4. The HR (HR Sister) - Near Entrance
@@ -222,9 +260,10 @@ export const generatePopulation = (): Character[] => {
   hr.intelligence = 80;
   hr.characteristics = ['高敏感', '感性', '八卦']; // High EQ/Gossip
   hr.skills.psychology = 90;
+  assignInitialSecrets(hr);
   characters.push(hr);
 
-  // 5. Generate remaining generic NPCs (7 more to reach ~11 total)
+  // 5. Generate remaining generic NPCs
   for (let i = 0; i < 7; i++) {
     const desk = shuffledDesks.pop() || { x: i, y: 0 };
     characters.push(generateIdentity(`npc_${i}`, desk));

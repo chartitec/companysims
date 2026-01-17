@@ -2,13 +2,22 @@
 import React, { useState } from 'react';
 import { Character, WorldState, LocationType, CharacterState } from '../types';
 import { LOCATIONS, LOCATION_NAMES } from '../constants';
-import { MessageCircle, Gift, X, Skull, Zap, Briefcase } from 'lucide-react';
+import { MessageCircle, Gift, X, Skull, Zap, Briefcase, Heart, Coffee, Armchair, Users, DollarSign, ArrowUpFromLine } from 'lucide-react';
 
 interface WorldMapProps {
   worldState: WorldState;
   onLocationClick: (loc: LocationType) => void;
-  onInteraction: (targetId: string, type: 'gossip' | 'gift') => void;
+  onInteraction: (targetId: string, type: 'gossip' | 'gift' | 'propose') => void;
 }
+
+const ROOM_ZONES = [
+  { type: LocationType.CEO_OFFICE, x: 1, y: 1, w: 4, h: 3, label: 'CEO', color: 'yellow', icon: <DollarSign size={10} /> },
+  { type: LocationType.MEETING_ROOM_1, x: 6, y: 1, w: 6, h: 3, label: '会议室 A', color: 'purple', icon: <Users size={10} /> },
+  { type: LocationType.MEETING_ROOM_2, x: 13, y: 1, w: 6, h: 3, label: '会议室 B', color: 'purple', icon: <Users size={10} /> },
+  { type: LocationType.PANTRY, x: 1, y: 15, w: 5, h: 4, label: '茶水间', color: 'orange', icon: <Coffee size={10} /> },
+  { type: LocationType.LOUNGE, x: 7, y: 15, w: 6, h: 4, label: '休息区', color: 'green', icon: <Armchair size={10} /> },
+  { type: LocationType.RESTROOM, x: 14, y: 15, w: 5, h: 4, label: '卫生间', color: 'blue', icon: null },
+];
 
 const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInteraction }) => {
   const [selectedCharId, setSelectedCharId] = useState<string | null>(null);
@@ -23,7 +32,7 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
     setSelectedCharId(char.id === selectedCharId ? null : char.id);
   };
 
-  const handleAction = (type: 'gossip' | 'gift', targetId: string) => {
+  const handleAction = (type: 'gossip' | 'gift' | 'propose', targetId: string) => {
     onInteraction(targetId, type);
     setSelectedCharId(null);
   };
@@ -34,6 +43,17 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
     width: `${w * (100 / GRID_SIZE)}%`,
     height: `${h * (100 / GRID_SIZE)}%`,
   });
+
+  const getRoomColorClasses = (color: string) => {
+    switch (color) {
+      case 'yellow': return 'border-yellow-600/50 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-500';
+      case 'purple': return 'border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300';
+      case 'orange': return 'border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 text-orange-300';
+      case 'green': return 'border-green-500/50 bg-green-500/10 hover:bg-green-500/20 text-green-300';
+      case 'blue': return 'border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-blue-300';
+      default: return 'border-slate-500/50 bg-slate-500/10 text-slate-300';
+    }
+  };
 
   const player = worldState.characters.find(c => c.isPlayer);
 
@@ -53,65 +73,23 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
       />
 
       {/* --- ROOMS --- */}
-      
-      {/* CEO Office */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.CEO_OFFICE); }}
-        className="absolute border border-yellow-600/50 bg-yellow-600/10 hover:bg-yellow-600/20 text-[10px] flex items-center justify-center font-bold text-yellow-500 rounded"
-        style={getLocationStyle(1, 1, 4, 3)}
-      >
-        CEO
-      </button>
+      {ROOM_ZONES.map(room => (
+        <button
+          key={room.type}
+          onClick={(e) => { e.stopPropagation(); onLocationClick(room.type); }}
+          className={`absolute border text-[10px] flex flex-col gap-1 items-center justify-center font-bold rounded transition-colors ${getRoomColorClasses(room.color)}`}
+          style={getLocationStyle(room.x, room.y, room.w, room.h)}
+        >
+          {room.icon}
+          <span>{room.label}</span>
+        </button>
+      ))}
 
-      {/* Meeting Room 1 */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.MEETING_ROOM_1); }}
-        className="absolute border border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20 text-[10px] flex items-center justify-center text-purple-300 rounded"
-        style={getLocationStyle(6, 1, 6, 3)}
-      >
-        会议室 A
-      </button>
-
-      {/* Meeting Room 2 */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.MEETING_ROOM_2); }}
-        className="absolute border border-purple-500/50 bg-purple-500/10 hover:bg-purple-500/20 text-[10px] flex items-center justify-center text-purple-300 rounded"
-        style={getLocationStyle(13, 1, 6, 3)}
-      >
-        会议室 B
-      </button>
-
-      {/* Pantry */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.PANTRY); }}
-        className="absolute border border-orange-500/50 bg-orange-500/10 hover:bg-orange-500/20 text-[10px] flex items-center justify-center text-orange-300 rounded"
-        style={getLocationStyle(1, 15, 5, 4)}
-      >
-        茶水间
-      </button>
-
-      {/* Lounge */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.LOUNGE); }}
-        className="absolute border border-green-500/50 bg-green-500/10 hover:bg-green-500/20 text-[10px] flex items-center justify-center text-green-300 rounded"
-        style={getLocationStyle(7, 15, 6, 4)}
-      >
-        休息区
-      </button>
-
-      {/* Restroom */}
-      <button
-        onClick={(e) => { e.stopPropagation(); onLocationClick(LocationType.RESTROOM); }}
-        className="absolute border border-blue-500/50 bg-blue-500/10 hover:bg-blue-500/20 text-[10px] flex items-center justify-center text-blue-300 rounded"
-        style={getLocationStyle(14, 15, 5, 4)}
-      >
-        卫生间
-      </button>
-
-      {/* Elevator */}
+      {/* Elevator (Static) */}
       <div className="absolute border-l border-slate-600 bg-slate-800 text-[9px] flex flex-col items-center justify-center text-slate-500"
         style={getLocationStyle(19, 5, 1, 10)}
       >
+        <ArrowUpFromLine size={10} className="mb-1" />
         电<br/>梯
       </div>
 
@@ -150,11 +128,24 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
       {worldState.characters.map((char) => {
         const isDead = char.state === CharacterState.DEAD;
         const isBreakdown = char.state === CharacterState.BREAKDOWN;
+        const isBusy = char.state === CharacterState.MOVING || char.state === CharacterState.PERFORMING;
         
+        // Interaction Logic
+        const intimacy = player?.network_intimacy[char.id] || 0;
+        const canPropose = player && !player.spouseId && !char.spouseId && intimacy >= 80;
+
+        // Thought Bubble Visibility Logic
+        let bubbleOpacityClass = "opacity-0"; // Default hidden
+        if (char.isPlayer) {
+           bubbleOpacityClass = "opacity-100"; // Player always visible
+        } else if (!isBusy && selectedCharId !== char.id) {
+           bubbleOpacityClass = "group-hover:opacity-100"; // NPC show on hover only if idle
+        }
+
         return (
           <div
             key={char.id}
-            className={`absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300 ease-linear z-10 
+            className={`group absolute transform -translate-x-1/2 -translate-y-1/2 flex flex-col items-center transition-all duration-300 ease-linear z-10 
               ${!char.isPlayer && !isDead ? 'cursor-pointer hover:scale-110' : ''}
               ${isDead ? 'opacity-60 grayscale' : ''}
               ${isBreakdown ? 'animate-pulse' : ''}
@@ -186,6 +177,15 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
                   <Gift size={12} />
                   <span>送礼物 (-¥500)</span>
                 </button>
+                {canPropose && (
+                  <button 
+                    onClick={() => handleAction('propose', char.id)}
+                    className="flex items-center gap-2 px-2 py-1.5 bg-red-500/20 hover:bg-red-500/40 text-red-300 text-xs rounded transition-colors"
+                  >
+                    <Heart size={12} />
+                    <span>求婚 (需好感度)</span>
+                  </button>
+                )}
                 <button 
                   onClick={() => setSelectedCharId(null)}
                   className="mt-1 flex items-center justify-center gap-1 text-[10px] text-slate-500 hover:text-slate-300"
@@ -197,7 +197,7 @@ const WorldMap: React.FC<WorldMapProps> = ({ worldState, onLocationClick, onInte
             )}
 
             {/* Thought Bubble */}
-            <div className={`mb-1 transition-opacity bg-white text-slate-900 text-[10px] px-2 py-1 rounded shadow whitespace-nowrap absolute bottom-full ${selectedCharId === char.id ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
+            <div className={`mb-1 transition-opacity duration-300 bg-white text-slate-900 text-[10px] px-2 py-1 rounded shadow whitespace-nowrap absolute bottom-full ${bubbleOpacityClass}`}>
               {char.thoughtBubble}
             </div>
             
